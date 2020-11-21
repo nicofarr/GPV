@@ -30,7 +30,16 @@ DEVICE = torch.device(DEVICE)
 
 
 def extract_feature(wavefilepath, **kwargs):
-    wav, sr = sf.read(wavefilepath, dtype='float32')
+    try:
+        wav, sr = sf.read(wavefilepath, dtype='float32')
+    except:
+        print("error with file {}".format(wavefilepath))
+        wav = np.random.randn(480000)
+        sr = 48000
+
+    if len(wav)==0:
+        print("error with file {}".format(wavefilepath))
+        wav = np.random.randn(480000)
     if wav.ndim > 1:
         wav = wav.mean(-1)
     wav = librosa.resample(wav, sr, target_sr=SAMPLE_RATE)
@@ -116,9 +125,10 @@ def main():
     dset = OnlineLogMelDataset(wavlist, **LMS_ARGS)
     dloader = torch.utils.data.DataLoader(dset,
                                           batch_size=1,
-                                          num_workers=2,
+                                          num_workers=14,
                                           shuffle=False)
 
+    print(DEVICE)
     model_kwargs_pack = MODELS[args.model]
     model_resolution = model_kwargs_pack['resolution']
     model = model_kwargs_pack['model'](
