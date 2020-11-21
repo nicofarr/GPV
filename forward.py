@@ -147,6 +147,7 @@ def main():
                     mtime = (os.path.getmtime(os.path.join(args.output_path,curfile)))
                     if mtime>mostrecentmodif:
                         mostrecentfile = curfile
+                        mostrecentmodif = mtime
             if mostrecentfile is not None:
                 ### The end of the file is @K.csv where K is the last file that was processed at the last run
                 ### The next index at which we will end is K+L
@@ -159,7 +160,7 @@ def main():
                 print("Creating file {} because there was no file previously processed".format(mostrecentfile))
                 
             speechpredsfile = os.path.join(args.output_path,"speechpreds@{}.csv".format(indL))
-            allpredsfile = os.path.join(args.output_path,"allpreds@{}.csv".format(indL))
+            allpredsfile = os.path.join(args.output_path,"allpreds.csv".format(indL))
 
             wavlist = wavlist[(indL-length):indL]
 
@@ -167,7 +168,7 @@ def main():
             
         else:
             speechpredsfile = os.path.join(args.output_path,"speechpredsfile@{}.csv".format(0))
-            allpredsfile = os.path.join(args.output_path,"allpreds@{}.csv".format(0))
+            allpredsfile = os.path.join(args.output_path,"allpreds.csv".format(0))
             
         print("I will save 2 files {} and {}".format(speechpredsfile,allpredsfile))
 
