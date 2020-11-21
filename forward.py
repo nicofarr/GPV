@@ -40,6 +40,7 @@ def extract_feature(wavefilepath, **kwargs):
     if len(wav)==0:
         print("error with file {}".format(wavefilepath))
         wav = np.random.randn(480000)
+        sr = 48000
     if wav.ndim > 1:
         wav = wav.mean(-1)
     wav = librosa.resample(wav, sr, target_sr=SAMPLE_RATE)
@@ -109,6 +110,12 @@ def main():
                         default=(0.5, 0.1),
                         type=float,
                         nargs="+")
+
+    parser.add_argument('-L',
+                        '--large',
+                        default=None,
+                        type=int,
+                        help='mechanism to deal with very large wavlists. if there is no csv, it will create one with _1.csv at the end, and it will process only a 1000 files. If there is a csv already, it will process only 1000 files starting from the _n.csv , so for from file N*1000 until (N+1)*1000')
     args = parser.parse_args()
 
     logger.info("Passed args")
@@ -120,6 +127,52 @@ def main():
                               header=None,
                               names=['filename'])
         wavlist = wavlist['filename'].values.tolist()
+
+        print("Wave list is {} files long".format(len(wavlist)))
+
+        ### Implementing a mechanism to deal with very large wavlists
+        ### argument -L or --large will check if there is already a csv in the savepath 
+        ### if there is no csv, it will create one with _1.csv at the end, and it will process only a 1000 files
+        ### If there is a csv already, it will process only 1000 files starting from the _n.csv , so for from file N*1000 until (N+1)*1000
+        ### This mode has to be run in a loop until all files have been processed
+
+        if args.large:
+            length = args.large ### this is L
+            # Check the csv files in the savepath folder and fetch the name of the most recent file
+            mostrecentmodif = 0
+            mostrecentfile = None
+            for curfile in os.listdir(args.output_path):
+                if os.path.splitext(curfile)[1]=='.csv':
+                    
+                    mtime = (os.path.getmtime(os.path.join(args.output_path,curfile)))
+                    if mtime>mostrecentmodif:
+                        mostrecentfile = curfile
+            if mostrecentfile is not None:
+                ### The end of the file is @K.csv where K is the last file that was processed at the last run
+                ### The next index at which we will end is K+L
+                print("Most Recent File is {}".format(mostrecentfile))
+                indL = int(mostrecentfile.split('@')[-1][:-4]) + length
+            else:
+                ### No file was processed so we initialise the file name to @L.csv
+                mostrecentfile = os.path.join(args.output_path,"speechpreds@{}.csv".format(length))
+                indL= length
+                print("Creating file {} because there was no file previously processed".format(mostrecentfile))
+                
+            speechpredsfile = os.path.join(args.output_path,"speechpreds@{}.csv".format(indL))
+            allpredsfile = os.path.join(args.output_path,"allpreds@{}.csv".format(indL))
+
+            wavlist = wavlist[(indL-length):indL]
+
+            print("I will process {} files starting from file {}".format(len(wavlist),(indL-length)))
+            
+        else:
+            speechpredsfile = os.path.join(args.output_path,"speechpredsfile@{}.csv".format(0))
+            allpredsfile = os.path.join(args.output_path,"allpreds@{}.csv".format(0))
+            
+        print("I will save 2 files {} and {}".format(speechpredsfile,allpredsfile))
+
+
+
     elif args.wav:
         wavlist = [args.wav]
     dset = OnlineLogMelDataset(wavlist, **LMS_ARGS)
@@ -129,6 +182,12 @@ def main():
                                           shuffle=False)
 
     print(DEVICE)
+    
+
+
+
+
+
     model_kwargs_pack = MODELS[args.model]
     model_resolution = model_kwargs_pack['resolution']
     model = model_kwargs_pack['model'](
@@ -182,10 +241,10 @@ def main():
         if args.output_path:
             args.output_path = Path(args.output_path)
             args.output_path.mkdir(parents=True, exist_ok=True)
-            prediction_df.to_csv(args.output_path / 'speech_predictions.tsv',
+            prediction_df.to_csv(speechpredsfile,
                                 sep='\t',
                                 index=False)
-            full_prediction_df.to_csv(args.output_path / 'all_predictions.tsv',
+            full_prediction_df.to_csv(allpredsfile,
                                     sep='\t',
                                     index=False)
             logger.info(f"Putting results also to dir {args.output_path}")
